@@ -2,10 +2,11 @@ import { Link } from 'react-router-dom'
 import { useEffect, useMemo, useState } from 'react'
 import useCart from '../store/useCart'
 
+const TAX_RATE = 0.06 // 6%
+
 export default function Cart() {
   const { items, update, remove, clear } = useCart()
   const [drafts, setDrafts] = useState({})
-  const [dirty, setDirty] = useState(false)
   const [updating, setUpdating] = useState(false)
   const [justUpdated, setJustUpdated] = useState(false)
 
@@ -14,7 +15,6 @@ export default function Cart() {
     const map = {}
     for (const it of items) map[it.id] = it.quantity
     setDrafts(map)
-    setDirty(false)
   }, [items])
 
   // whether any input differs from store quantities
@@ -23,16 +23,20 @@ export default function Cart() {
     [items, drafts]
   )
 
-  // live preview total based on drafts
-  const previewTotalCents = useMemo(
+  // live preview subtotal based on drafts
+  const subtotalCents = useMemo(
     () => items.reduce((s, it) => s + it.priceCents * (drafts[it.id] ?? it.quantity), 0),
     [items, drafts]
   )
+  const taxCents = useMemo(
+    () => Math.round(subtotalCents * TAX_RATE),
+    [subtotalCents]
+  )
+  const totalCents = subtotalCents + taxCents
 
   function onQtyChange(id, value) {
     const qty = Math.max(1, parseInt(value || '1', 10))
     setDrafts(d => ({ ...d, [id]: isNaN(qty) ? 1 : qty }))
-    setDirty(true)
   }
 
   async function applyUpdates() {
@@ -44,7 +48,6 @@ export default function Cart() {
       }
     }
     setUpdating(false)
-    setDirty(false)
     setJustUpdated(true)
     setTimeout(() => setJustUpdated(false), 1200)
   }
@@ -130,16 +133,24 @@ export default function Cart() {
           </Link>
         </div>
 
-        <div className="bg-white p-4 rounded-xl shadow">
-          <div className="flex items-center justify-between">
+        <div className="bg-white p-4 rounded-xl shadow space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <div className="text-gray-600">Subtotal</div>
+            <div className="font-medium">${(subtotalCents/100).toFixed(2)}</div>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <div className="text-gray-600">Sales Tax (6%)</div>
+            <div className="font-medium">${(taxCents/100).toFixed(2)}</div>
+          </div>
+          <div className="border-t pt-2 flex items-center justify-between">
             <div className="font-semibold">Total</div>
             <div className="text-lg font-bold">
-              ${ (previewTotalCents/100).toFixed(2) }
+              ${(totalCents/100).toFixed(2)}
             </div>
           </div>
           <Link
             to="/checkout"
-            className="block text-center mt-4 bg-indigo-600 text-white px-6 py-3 rounded-xl shadow hover:bg-indigo-700"
+            className="block text-center mt-3 bg-indigo-600 text-white px-6 py-3 rounded-xl shadow hover:bg-indigo-700"
           >
             Checkout
           </Link>

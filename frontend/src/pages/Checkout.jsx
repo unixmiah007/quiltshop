@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import useCart from '../store/useCart'
 import useAuth from '../store/useAuth'
 import { api } from '../components/api'
 
+const TAX_RATE = 0.06 // 6%
+
 export default function Checkout() {
-  const { items, totalCents, clear } = useCart()
+  const { items, clear } = useCart()
   const { user, init } = useAuth()
 
   // form state
@@ -18,7 +20,15 @@ export default function Checkout() {
 
   useEffect(()=>{ init() },[])
 
-  // map cart + address objects to backend payload expected by /checkout/save
+  // Money math (in cents)
+  const subtotalCents = useMemo(
+    () => items.reduce((s, i) => s + (Number(i.priceCents||0) * Number(i.quantity||1)), 0),
+    [items]
+  )
+  const taxCents   = useMemo(() => Math.round(subtotalCents * TAX_RATE), [subtotalCents])
+  const totalCents = subtotalCents + taxCents
+
+  // Build payload for /checkout/save and /checkout/create-session
   const buildPayload = () => {
     const mapAddr = (a) => ({
       name: a.name || '',
@@ -33,7 +43,15 @@ export default function Checkout() {
       productId: i.id,
       quantity: Number(i.quantity || i.qty || 1),
     }))
-    return { items: payloadItems, shipping: mapAddr(shipping), billing: mapAddr(billing) }
+    return {
+      items: payloadItems,
+      shipping: mapAddr(shipping),
+      billing:  mapAddr(billing),
+      clientSubtotalCents: subtotalCents,
+      clientTaxCents: taxCents,
+      clientTotalCents: totalCents,
+      clientTaxRate: TAX_RATE,
+    }
   }
 
   async function handleCheckout() {
@@ -45,19 +63,17 @@ export default function Checkout() {
     const payload = buildPayload()
 
     try {
-      // 1) Always save a draft order first (status = PENDING)
-      const saved = await api.post('/checkout/save', payload)   // { ok, orderId, totalCents }
+      // 1) Save draft order first (status = PENDING)
+      const saved = await api.post('/checkout/save', payload)   // { ok, orderId, ... }
 
-      // 2) Then try to start Stripe. If this fails, the draft remains.
+      // 2) Attempt Stripe session
       const { data } = await api.post('/checkout/create-session', { ...payload, orderId: saved.data?.orderId })
       if (data?.url) {
         window.location.href = data.url
         return
       }
-      // If backend didn’t return a URL
       setNotice('We saved your shipping & billing info and cart. You can complete payment later.')
     } catch (e) {
-      // Stripe or network failed — ensure at least the draft save is attempted
       try {
         await api.post('/checkout/save', buildPayload())
         setNotice('We saved your shipping & billing info and cart. You can complete payment later.')
@@ -103,6 +119,18 @@ export default function Checkout() {
               <div>${((i.priceCents*i.quantity)/100).toFixed(2)}</div>
             </div>
           ))}
+
+          <div className="mt-3 space-y-1 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-600">Subtotal</span>
+              <span className="font-medium">${(subtotalCents/100).toFixed(2)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-600">Sales Tax (6%)</span>
+              <span className="font-medium">${(taxCents/100).toFixed(2)}</span>
+            </div>
+          </div>
+
           <div className="border-t mt-3 pt-3 flex items-center justify-between font-semibold">
             <div>Total</div>
             <div>${(totalCents/100).toFixed(2)}</div>
