@@ -18,15 +18,16 @@ export default function MyAccount() {
 
   useEffect(() => { init() }, [])
 
-  useEffect(() => {
-    if (!user) { setLoading(false); return }
-    setLoading(true); setError('')
-    api.get('/orders/mine')
-      .then(({ data }) => setOrders(data.orders || []))
-      .catch((e) => setError(e?.response?.data?.error || 'Failed to load orders'))
-      .finally(() => setLoading(false))
-  }, [user])
-
+    useEffect(() => {
+  if (authLoading) return
+  if (!user) { setLoading(false); return }
+  setLoading(true); setError('')
+  api.get('/orders/mine')
+    .then(({ data }) => setOrders(data.orders || []))
+    .catch(e => setError(e?.response?.data?.error || 'Failed to load orders'))
+    .finally(() => setLoading(false))
+    }, [user, authLoading])
+    
   if (authLoading) {
     return <div className="py-10 text-center text-gray-600">Loading account…</div>
   }

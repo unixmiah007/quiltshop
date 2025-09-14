@@ -1,5 +1,8 @@
+// frontend/src/pages/App.jsx
 import { Routes, Route } from 'react-router-dom'
 import Navbar from '../components/Navbar.jsx'
+import FloatingCart from '../components/FloatingCart.jsx' // ⬅️ added
+
 import About from './About.jsx'
 import Home from './Home.jsx'
 import Catalog from './Catalog.jsx'
@@ -12,32 +15,38 @@ import Success from './Success.jsx'
 import Admin from './Admin.jsx'
 import MyAccount from './MyAccount.jsx'
 import AdminOrders from './AdminOrders.jsx'
-import AdminProducts from './AdminProducts.jsx';
+import AdminProducts from './AdminProducts.jsx'
 import Contact from './Contact.jsx'
 
 export default function App() {
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
+      {/* Floating cart lives outside Routes so it’s global */}
+      <FloatingCart />
+
       <main className="flex-1 max-w-6xl mx-auto w-full p-4">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/catalog" element={<Catalog />} />
           <Route path="/about" element={<About />} />
-	  <Route path="/product/:id" element={<ProductDetail />} />
+          <Route path="/product/:id" element={<ProductDetail />} />
           <Route path="/cart" element={<Cart />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/success" element={<Success />} />
           <Route path="/admin" element={<Admin />} />
-	  <Route path="/account" element={<MyAccount />} />
-	  <Route path="/admin/orders" element={<AdminOrders />} />
-	  <Route path="/admin/products" element={<AdminProducts />} />
-	  <Route path="/contact" element={<Contact />} />
+          <Route path="/account" element={<MyAccount />} />
+          <Route path="/admin/orders" element={<AdminOrders />} />
+          <Route path="/admin/products" element={<AdminProducts />} />
+          <Route path="/contact" element={<Contact />} />
         </Routes>
       </main>
-      <footer className="py-6 text-center text-sm text-gray-500">© {new Date().getFullYear()} Bear River Quilting</footer>
+
+      <footer className="py-6 text-center text-sm text-gray-500">
+        © {new Date().getFullYear()} Bear River Quilting
+      </footer>
     </div>
   )
 }

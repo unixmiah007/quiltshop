@@ -13,17 +13,20 @@ function tokenFor(user) {
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: `${days}d` })
 }
 
+// after creating JWT `token`
 function sendSession(res, user) {
   const token = tokenFor(user)
   // SameSite=Lax works for your same-origin setup (HTTP). Set secure:true when you move to HTTPS.
-  res.cookie(authCookieName, token, {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: false,
-    maxAge: days * 24 * 60 * 60 * 1000,
-    path: '/',
-  })
+res.cookie('token', token, {
+  httpOnly: true,
+  secure: false,       // ← false on HTTP (set true only with HTTPS)
+  sameSite: 'Lax',     // ← 'None' requires HTTPS; Lax is fine for same-origin XHR
+  path: '/',
+  maxAge: 30*24*3600*1000,
+})
+
 }
+res.json({ ok:true, user:{ id:user.id, email:user.email, name:user.name, role:user.role } })
 
 router.post(
   '/register',

@@ -2,6 +2,7 @@
 import axios from 'axios'
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE || '/api',
-  withCredentials: true, // if you use cookies for auth
+  withCredentials: true,     // ← must be true
+  headers: { 'Content-Type':'application/json' },
 })
 
