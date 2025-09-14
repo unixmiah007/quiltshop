@@ -1,3 +1,5 @@
+http://3.82.218.69/
+
 # 🧵 Quilt Shop — Full-Stack React + Node + MySQL
 
 A production-ready starter for selling quilts with image uploads, accounts, cart, and Stripe checkout.
