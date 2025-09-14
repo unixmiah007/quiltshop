@@ -1,0 +1,127 @@
+// Navbar.jsx
+import { Link, NavLink, useNavigate } from 'react-router-dom'
+import { useState } from 'react'
+import useAuth from '../store/useAuth'
+import useCart from '../store/useCart'
+
+const linkClass = ({ isActive }) =>
+  isActive ? 'text-indigo-600 font-medium' : 'text-gray-700 hover:text-gray-900'
+
+export default function Navbar() {
+  const { user, logout } = useAuth()
+  const count = useCart(s => s.items.reduce((n, i) => n + (i.quantity || 0), 0))
+  const navigate = useNavigate()
+  const [open, setOpen] = useState(false)
+
+  const close = () => setOpen(false)
+
+  return (
+    <header className="bg-white border-b sticky top-0 z-40">
+      <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+        {/* Brand */}
+        <Link to="/" onClick={close} className="flex items-center gap-3" aria-label="Bear River Quilting home">
+          <img
+            src="/brand/bear-river.svg"
+            width={150}
+            height={150}
+            alt="Bear River Quilting logo"
+            className="shrink-0"
+          />
+          <span className="text-xl font-semibold tracking-tight">Bear River Quilting</span>
+        </Link>
+
+        {/* Desktop nav */}
+        <nav className="hidden md:flex items-center gap-4">
+          <NavLink to="/" end className={linkClass}>Home</NavLink>
+          <NavLink to="/about" className={linkClass}>About</NavLink>
+          <NavLink to="/catalog" className={linkClass}>Catalog</NavLink>
+          <NavLink to="/contact" className={linkClass}>Contact</NavLink>
+
+          {user?.role === 'ADMIN' && (
+            <NavLink to="/admin" className={linkClass}>Admin</NavLink>
+          )}
+
+          <NavLink to="/cart" className={linkClass} aria-label={`Cart with ${count} items`}>
+            <span className="inline-flex items-center gap-1">
+              Cart
+              <span className="inline-block min-w-5 text-center text-xs font-semibold bg-gray-100 text-gray-800 px-1.5 py-0.5 rounded">
+                {count}
+              </span>
+            </span>
+          </NavLink>
+
+          {!user ? (
+            <NavLink to="/login" className={linkClass}>Login</NavLink>
+          ) : (
+            <>
+              <NavLink to="/account" className={linkClass}>My Account</NavLink>
+              <button
+                onClick={() => { logout(); navigate('/'); }}
+                className="text-gray-700 hover:text-red-600"
+                aria-label="Log out"
+              >
+                Logout
+              </button>
+            </>
+          )}
+        </nav>
+
+        {/* Mobile burger */}
+        <button
+          className="md:hidden inline-flex items-center justify-center rounded-lg border px-3 py-2 text-gray-700 hover:bg-gray-50"
+          aria-label="Toggle menu"
+          aria-expanded={open}
+          onClick={() => setOpen(v => !v)}
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            {open ? (
+              <path d="M18 6L6 18M6 6l12 12" strokeWidth="2" strokeLinecap="round"/>
+            ) : (
+              <path d="M3 6h18M3 12h18M3 18h18" strokeWidth="2" strokeLinecap="round"/>
+            )}
+          </svg>
+        </button>
+      </div>
+
+      {/* Mobile panel */}
+      {open && (
+        <div className="md:hidden border-t bg-white">
+          <nav className="max-w-6xl mx-auto px-4 py-3 grid gap-2">
+            <NavLink to="/" end className={linkClass} onClick={close}>Home</NavLink>
+            <NavLink to="/about" className={linkClass} onClick={close}>About</NavLink>
+            <NavLink to="/catalog" className={linkClass} onClick={close}>Catalog</NavLink>
+            <NavLink to="/contact" className={linkClass} onClick={close}>Contact</NavLink>
+
+            {user?.role === 'ADMIN' && (
+              <NavLink to="/admin" className={linkClass} onClick={close}>Admin</NavLink>
+            )}
+
+            <NavLink to="/cart" className={linkClass} onClick={close}>
+              <span className="inline-flex items-center gap-1">
+                Cart
+                <span className="inline-block min-w-5 text-center text-xs font-semibold bg-gray-100 text-gray-800 px-1.5 py-0.5 rounded">
+                  {count}
+                </span>
+              </span>
+            </NavLink>
+
+            {!user ? (
+              <NavLink to="/login" className={linkClass} onClick={close}>Login</NavLink>
+            ) : (
+              <>
+                <NavLink to="/account" className={linkClass} onClick={close}>My Account</NavLink>
+                <button
+                  onClick={() => { logout(); navigate('/'); close() }}
+                  className="text-left text-gray-700 hover:text-red-600"
+                  aria-label="Log out"
+                >
+                  Logout
+                </button>
+              </>
+            )}
+          </nav>
+        </div>
+      )}
+    </header>
+  )
+}

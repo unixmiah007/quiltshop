@@ -1,0 +1,68 @@
+<svg width="300" height="300" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">QuiltShop Logo</title>
+  <desc id="desc">Rounded badge containing a colorful quilt block grid.</desc>
+
+  <!-- Badge background -->
+  <rect x="10" y="10" width="280" height="280" rx="36" fill="#ffffff"></rect>
+  <rect x="10" y="10" width="280" height="280" rx="36" fill="none" stroke="#0f172a" stroke-opacity="0.12" stroke-width="2"></rect>
+
+  <!-- Quilt grid (4x4) -->
+  <g transform="translate(40,40)">
+    <!-- grid cell size -->
+    <!-- each cell is 50x50; gutter = 4 -->
+    <!-- Row 1 -->
+    <g transform="translate(0,0)">
+      <rect x="0" y="0" width="50" height="50" rx="6" fill="#F59E0B"></rect>
+      <rect x="54" y="0" width="50" height="50" rx="6" fill="#FACC15"></rect>
+      <rect x="108" y="0" width="50" height="50" rx="6" fill="#10B981"></rect>
+      <rect x="162" y="0" width="50" height="50" rx="6" fill="#93C5FD"></rect>
+    </g>
+    <!-- Row 2 -->
+    <g transform="translate(0,54)">
+      <rect x="0" y="0" width="50" height="50" rx="6" fill="#A5B4FC"></rect>
+      <rect x="54" y="0" width="50" height="50" rx="6" fill="#60A5FA"></rect>
+      <rect x="108" y="0" width="50" height="50" rx="6" fill="#F472B6"></rect>
+      <!-- diagonal half-square triangle -->
+      <g transform="translate(162,0)">
+        <rect width="50" height="50" rx="6" fill="#22C55E"></rect>
+        <path d="M0,50 L50,0 L50,50 Z" fill="#F59E0B"></path>
+      </g>
+    </g>
+    <!-- Row 3 -->
+    <g transform="translate(0,108)">
+      <rect x="0" y="0" width="50" height="50" rx="6" fill="#60A5FA"></rect>
+      <rect x="54" y="0" width="50" height="50" rx="6" fill="#F87171"></rect>
+      <rect x="108" y="0" width="50" height="50" rx="6" fill="#E9D5FF"></rect>
+      <rect x="162" y="0" width="50" height="50" rx="6" fill="#FACC15"></rect>
+    </g>
+    <!-- Row 4 -->
+    <g transform="translate(0,162)">
+      <!-- quartered block -->
+      <g transform="translate(0,0)">
+        <rect width="50" height="50" rx="6" fill="#FEF3C7"></rect>
+        <path d="M0,0 H50 V25 H0 Z" fill="#A5B4FC" opacity="0.55"></path>
+        <path d="M25,0 V50 H50 V0 Z" fill="#F472B6" opacity="0.45"></path>
+      </g>
+      <!-- diagonal HST -->
+      <g transform="translate(54,0)">
+        <rect width="50" height="50" rx="6" fill="#93C5FD"></rect>
+        <path d="M0,50 L50,0 L50,50 Z" fill="#F472B6"></path>
+      </g>
+      <!-- bold color pop -->
+      <rect x="108" y="0" width="50" height="50" rx="6" fill="#F59E0B"></rect>
+      <!-- diagonal HST -->
+      <g transform="translate(162,0)">
+        <rect width="50" height="50" rx="6" fill="#22C55E"></rect>
+        <path d="M0,50 L50,0 L50,50 Z" fill="#FACC15"></path>
+      </g>
+    </g>
+  </g>
+
+  <!-- Subtle “stitch” border -->
+  <g transform="translate(10,10)">
+    <rect x="6" y="6" width="268" height="268" rx="30" fill="none" stroke="#0f172a" stroke-opacity="0.18" stroke-width="1.5" stroke-dasharray="4 6"></rect>
+  </g>
+
+  <!-- Optional wordmark (can be removed) -->
+  <text x="150" y="288" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif" font-size="18" fill="#0f172a" opacity="0.8" letter-spacing="0.5">QuiltShop</text>
+</svg>

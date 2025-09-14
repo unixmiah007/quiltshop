@@ -1,0 +1,80 @@
+import { useEffect, useState } from 'react'
+import useCart from '../store/useCart'
+import useAuth from '../store/useAuth'
+import { api } from '../components/api'
+
+export default function Checkout() {
+  const { items, totalCents, clear } = useCart()
+  const { user, init } = useAuth()
+  const [shipping, setShipping] = useState({ name:'', address1:'', address2:'', city:'', state:'', postal:'', country:'' })
+  const [billing, setBilling] = useState({ name:'', address1:'', address2:'', city:'', state:'', postal:'', country:'' })
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  useEffect(()=>{ init() },[])
+
+  async function handleCheckout() {
+    setError('')
+    if (!user) { setError('Please login before checkout.'); return }
+    if (items.length === 0) { setError('Your cart is empty.'); return }
+    setLoading(true)
+    try {
+      const { data } = await api.post('/checkout/create-session', { items, shipping, billing })
+      if (data.url) {
+        window.location.href = data.url
+      } else {
+        setError('Failed to start checkout.')
+      }
+    } catch (e) {
+      setError(e.response?.data?.error || 'Checkout failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div>
+        <h2 className="text-2xl font-semibold mb-4">Shipping Info</h2>
+        <Form data={shipping} setData={setShipping} />
+        <h2 className="text-2xl font-semibold mt-8 mb-4">Billing Info</h2>
+        <Form data={billing} setData={setBilling} />
+      </div>
+      <div>
+        <h2 className="text-2xl font-semibold mb-4">Summary</h2>
+        <div className="bg-white p-4 rounded-xl shadow">
+          {items.map(i => (
+            <div key={i.id} className="flex items-center justify-between py-2">
+              <div>{i.title} × {i.quantity}</div>
+              <div>${((i.priceCents*i.quantity)/100).toFixed(2)}</div>
+            </div>
+          ))}
+          <div className="border-t mt-3 pt-3 flex items-center justify-between font-semibold">
+            <div>Total</div>
+            <div>${(totalCents/100).toFixed(2)}</div>
+          </div>
+          {error && <div className="text-red-600 mt-3">{error}</div>}
+          <button onClick={handleCheckout} disabled={loading}
+            className="w-full mt-4 bg-indigo-600 text-white px-6 py-3 rounded-xl shadow hover:bg-indigo-700 disabled:opacity-50">
+            {loading ? 'Starting checkout...' : 'Pay with Stripe'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Form({ data, setData }) {
+  function upd(k, v){ setData(prev => ({ ...prev, [k]: v })) }
+  return (
+    <div className="bg-white p-4 rounded-xl shadow grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <input className="border p-2 rounded-lg" placeholder="Full name" value={data.name} onChange={e=> upd('name', e.target.value)} />
+      <input className="border p-2 rounded-lg sm:col-span-2" placeholder="Address line 1" value={data.address1} onChange={e=> upd('address1', e.target.value)} />
+      <input className="border p-2 rounded-lg sm:col-span-2" placeholder="Address line 2 (optional)" value={data.address2} onChange={e=> upd('address2', e.target.value)} />
+      <input className="border p-2 rounded-lg" placeholder="City" value={data.city} onChange={e=> upd('city', e.target.value)} />
+      <input className="border p-2 rounded-lg" placeholder="State / Province" value={data.state} onChange={e=> upd('state', e.target.value)} />
+      <input className="border p-2 rounded-lg" placeholder="Postal code" value={data.postal} onChange={e=> upd('postal', e.target.value)} />
+      <input className="border p-2 rounded-lg" placeholder="Country" value={data.country} onChange={e=> upd('country', e.target.value)} />
+    </div>
+  )
+}

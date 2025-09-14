@@ -1,0 +1,59 @@
+import { useEffect, useState } from 'react'
+import { useParams, Link } from 'react-router-dom'
+import { api } from '../components/api'
+import useCart from '../store/useCart'
+import useAuth from '../store/useAuth'
+
+export default function ProductDetail() {
+  const { id } = useParams()
+  const [product, setProduct] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [notFound, setNotFound] = useState(false)
+  const { add } = useCart()
+  const { init } = useAuth()
+
+  useEffect(()=>{ init() },[])
+
+  useEffect(()=>{
+    let cancelled = false
+    setLoading(True); setError(''); setNotFound(false); setProduct(null)
+    api.get(`/products/${id}`)
+      .then(({data}) => { if (!cancelled) { setProduct(data.product); } })
+      .catch((e) => {
+        if (cancelled) return
+        if (e?.response?.status === 404) setNotFound(true)
+        else setError(e?.response?.data?.error || 'Failed to load product')
+      })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  },[id])
+
+  if (loading) return <div className="text-center py-10 text-gray-600">Loading product…</div>
+  if (notFound) return (
+    <div className="text-center py-16">
+      <h2 className="text-2xl font-semibold mb-2">Product not found</h2>
+      <p className="text-gray-600 mb-6">The quilt you’re looking for doesn’t exist or was removed.</p>
+      <Link to="/catalog" className="inline-block bg-indigo-600 text-white px-6 py-3 rounded-xl shadow hover:bg-indigo-700">Back to Catalog</Link>
+    </div>
+  )
+  if (error) return <div className="text-center py-10 text-red-600">{error}</div>
+  if (!product) return null
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div>
+        {product.imageUrl && <img src={product.imageUrl} alt={product.title} className="w-full rounded-2xl shadow" />}
+      </div>
+      <div>
+        <h2 className="text-3xl font-bold mb-2">{product.title}</h2>
+        <p className="text-gray-600 mb-4">{product.description}</p>
+        <p className="text-2xl font-semibold mb-6">${(product.priceCents/100).toFixed(2)}</p>
+        <button onClick={()=> add({ id: product.id, title: product.title, priceCents: product.priceCents, imageUrl: product.imageUrl, quantity: 1 })}
+          className="bg-indigo-600 text-white px-6 py-3 rounded-xl shadow hover:bg-indigo-700">
+          Add to Cart
+        </button>
+      </div>
+    </div>
+  )
+}

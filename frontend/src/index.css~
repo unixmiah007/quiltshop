@@ -1,0 +1,148 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; }
+
+
+/* Fashion-forward palette (terracotta / blush / sage / ink / sand) */
+.palette-cafe {
+  --quilt-1: #C66C47; /* terracotta */
+  --quilt-2: #E9B2A8; /* blush */
+  --quilt-3: #9DB8A5; /* sage mid */
+  --quilt-4: #1B3B3A; /* deep ink green */
+  --quilt-5: #EEE7DF; /* soft sand */
+}
+
+/* Update the quilt background to use the vars above */
+.quilt-bg {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cdefs%3E%3ClinearGradient id='g1' x1='0' x2='1' y1='0' y2='1'%3E%3Cstop offset='0%25' stop-color='%23EEE7DF'/%3E%3Cstop offset='100%25' stop-color='%23E9B2A8'/%3E%3C/linearGradient%3E%3ClinearGradient id='g2' x1='1' x2='0' y1='0' y2='1'%3E%3Cstop offset='0%25' stop-color='%239DB8A5'/%3E%3Cstop offset='100%25' stop-color='%23EEE7DF'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='220' height='220' fill='%23ffffff'/%3E%3Cg opacity='0.55'%3E%3Crect x='0' y='0' width='110' height='110' fill='url(%23g1)'/%3E%3Crect x='110' y='0' width='110' height='110' fill='url(%23g2)'/%3E%3Crect x='0' y='110' width='110' height='110' fill='url(%23g2)'/%3E%3Crect x='110' y='110' width='110' height='110' fill='url(%23g1)'/%3E%3C/g%3E%3Cg%3E%3Cpath d='M0 110 L110 0 L220 110 L110 220 Z' fill='none' stroke='%231B3B3A' stroke-width='1.5' opacity='0.15'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 220px 220px;
+  background-position: center;
+}
+
+/* Make QuiltBlocks follow the new palette using CSS vars */
+.quilt-tile > div {
+  width: 100%; height: 100%;
+  background: conic-gradient(
+    from 45deg,
+    var(--quilt-5),
+    var(--quilt-2),
+    var(--quilt-3),
+    var(--quilt-1),
+    var(--quilt-5)
+  );
+}
+.quilt-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+}
+.quilt-tile {
+  aspect-ratio: 1/1;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  overflow: hidden;
+}
+.quilt-tile > div {
+  width: 100%; height: 100%;
+  background: conic-gradient(from 45deg, #fef3c7, #fecaca, #bfdbfe, #d9f99d, #fef3c7);
+}
+    
+/* -------- Palettes (CSS variables) -------- */
+.palette-cafe {
+  --col-1: #C66C47; /* terracotta */
+  --col-2: #E9B2A8; /* blush */
+  --col-3: #9DB8A5; /* sage */
+  --col-4: #EEE7DF; /* sand */
+  --ink:   #1B3B3A; /* deep ink */
+}
+.palette-coastal {
+  --col-1: #78C6B0; /* seafoam */
+  --col-2: #F0E6D6; /* sand */
+  --col-3: #B9D7EA; /* mist */
+  --col-4: #D5F1E3; /* light mint */
+  --ink:   #123A5A; /* navy */
+}
+.palette-midnight {
+  --col-1: #6B2D5C; /* plum */
+  --col-2: #B27BA1; /* orchid */
+  --col-3: #8EA3B7; /* slate */
+  --col-4: #E6E2E9; /* pale mauve */
+  --ink:   #1F1F25; /* coal */
+}
+
+/* Helpful text tokens */
+.text-ink        { color: var(--ink); }
+.text-ink-strong { color: color-mix(in srgb, var(--ink) 90%, black); }
+.bg-ink          { background-color: var(--ink); }
+.bg-accent       { background-color: var(--col-1); }
+
+/* Gradient wash that adapts to the palette */
+.quilt-gradient {
+  background:
+    radial-gradient(120% 80% at 10% 0%, #fff5, transparent 55%),
+    linear-gradient(135deg, var(--col-4), var(--col-2), var(--col-3));
+}
+
+/* SVG quilt graphic that uses the palette variables */
+.quilt-graphic {
+  background-image: url("data:image/svg+xml;utf8,\
+  <svg xmlns='http://www.w3.org/2000/svg' width='800' height='800' viewBox='0 0 200 200'>\
+    <defs>\
+      <linearGradient id='a' x1='0' y1='0' x2='1' y2='1'>\
+        <stop offset='0%' stop-color='var(--col-1)'/>\
+        <stop offset='100%' stop-color='var(--col-2)'/>\
+      </linearGradient>\
+      <linearGradient id='b' x1='1' y1='0' x2='0' y2='1'>\
+        <stop offset='0%' stop-color='var(--col-3)'/>\
+        <stop offset='100%' stop-color='var(--col-4)'/>\
+      </linearGradient>\
+    </defs>\
+    <rect width='200' height='200' fill='white'/>\
+    <g opacity='0.9'>\
+      <rect x='0' y='0'   width='100' height='100' fill='url(%23a)'/>\
+      <rect x='100' y='0' width='100' height='100' fill='url(%23b)'/>\
+      <rect x='0' y='100' width='100' height='100' fill='url(%23b)'/>\
+      <rect x='100' y='100' width='100' height='100' fill='url(%23a)'/>\
+    </g>\
+    <g opacity='0.22' stroke='var(--ink)' stroke-width='1.2' fill='none'>\
+      <path d='M0 100 L100 0 L200 100 L100 200 Z'/>\
+      <path d='M100 0 L200 100 L100 200 L0 100 Z'/>\
+    </g>\
+  </svg>");
+  background-size: 260px 260px;
+  background-position: center;
+}
+
+/* Make QuiltBlocks pick up the palette */
+.quilt-tile > div {
+  width: 100%; height: 100%;
+  background: conic-gradient(from 45deg,
+    var(--col-4), var(--col-2), var(--col-3), var(--col-1), var(--col-4));
+}
+/* Base (fallback) */
+.quilt-gradient { background: linear-gradient(135deg, var(--col-4), var(--col-2), var(--col-3)); }
+
+/* Cafe: airy sand → blush → sage */
+.palette-cafe .quilt-gradient {
+  background:
+    linear-gradient(0deg, rgba(255,255,255,.68), rgba(255,255,255,.68)),
+    radial-gradient(120% 80% at 10% 0%, rgba(255,255,255,.45), transparent 55%),
+    linear-gradient(135deg, var(--col-4), var(--col-2), var(--col-3));
+}
+
+/* Coastal: cool misty wash */
+.palette-coastal .quilt-gradient {
+  background:
+    linear-gradient(0deg, rgba(255,255,255,.72), rgba(255,255,255,.72)),
+    radial-gradient(140% 80% at 85% 10%, rgba(255,255,255,.55), transparent 60%),
+    linear-gradient(135deg, var(--col-3), var(--col-4), var(--col-1));
+}
+
+/* Midnight: subtle vignette */
+.palette-midnight .quilt-gradient {
+  background:
+    radial-gradient(100% 70% at 50% 10%, rgba(255,255,255,.15), transparent 60%),
+    linear-gradient(135deg, var(--col-2), var(--col-3), var(--col-4));
+}

@@ -1,0 +1,503 @@
+// frontend/src/pages/Admin.jsx
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { api } from '../components/api'
+import useAuth from '../store/useAuth'
+
+/** Drag & drop / click / paste image uploader */
+function ImageDropZone({ onUploaded, onOk, onError, defaultPreview = '' }) {
+  const [drag, setDrag] = useState(false)
+  const [preview, setPreview] = useState(defaultPreview || '')
+  const inputRef = useRef(null)
+
+  useEffect(() => {
+    function onPaste(e) {
+      const f = [...(e.clipboardData?.files || [])].find(fl => fl.type.startsWith('image/'))
+      if (f) handleFile(f)
+    }
+    window.addEventListener('paste', onPaste)
+    return () => window.removeEventListener('paste', onPaste)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function openPicker() { inputRef.current?.click() }
+  function onDragOver(e) { e.preventDefault(); e.stopPropagation(); setDrag(true) }
+  function onDragLeave(e) { e.preventDefault(); e.stopPropagation(); setDrag(false) }
+  function onDrop(e) {
+    e.preventDefault(); e.stopPropagation(); setDrag(false)
+    const f = e.dataTransfer?.files?.[0]
+    if (f) handleFile(f)
+  }
+  function onChange(e) {
+    const f = e.target.files?.[0]
+    if (f) handleFile(f)
+  }
+
+  async function handleFile(file) {
+    if (!file.type.startsWith('image/')) return onError?.('Please drop an image file')
+    if (file.size > 8 * 1024 * 1024) return onError?.('Image is too large (max 8 MB)')
+    try {
+      onError?.(''); onOk?.('')
+      const localUrl = URL.createObjectURL(file)
+      setPreview(localUrl)
+
+      const fd = new FormData()
+      fd.append('image', file) // must match upload.single('image') on server
+      const { data } = await api.post('/uploads', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      setPreview(data.url)
+      onUploaded?.(data.url)
+      onOk?.('Uploaded image')
+    } catch (e) {
+      onError?.(e?.response?.data?.error || 'Upload failed')
+    }
+  }
+
+  return (
+    <div
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      onClick={openPicker}
+      className={
+        'cursor-pointer rounded-xl border-2 border-dashed p-4 text-center transition ' +
+        (drag ? 'border-indigo-500 bg-indigo-50/60' : 'border-gray-300 hover:bg-gray-50')
+      }
+      role="button"
+      aria-label="Upload product image by dropping, clicking, or pasting"
+    >
+      <input ref={inputRef} type="file" accept="image/*" onChange={onChange} className="hidden" />
+      {preview ? (
+        <div className="flex items-center gap-3">
+          <img src={preview} alt="preview" className="w-20 h-20 object-cover rounded-lg border" />
+          <div className="text-left text-sm text-gray-600">
+            <div className="font-medium">Image selected</div>
+            <div>Click to replace, or paste a new image</div>
+          </div>
+        </div>
+      ) : (
+        <div className="text-gray-600">
+          <div className="font-medium">Drag & drop image here</div>
+          <div className="text-sm">or click to browse, or paste (Ctrl/Cmd-V)</div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const moneyToCents = (s) => {
+  if (s === '' || s == null) return 0
+  const n = Number(String(s).replace(/[^0-9.]/g, ''))
+  return Math.round(n * 100)
+}
+const centsToMoney = (c) => (Number(c || 0) / 100).toFixed(2)
+
+export default function Admin() {
+  const { user, init } = useAuth()
+
+  // ----- Products state -----
+  const [form, setForm] = useState({
+    title: '',
+    description: '',
+    price: '',
+    stock: 0,
+    imageUrl: '',
+    featuredHome: false,
+  })
+  const [products, setProducts] = useState([])
+  const [q, setQ] = useState('')
+  const [prodError, setProdError] = useState('')
+  const [prodOk, setProdOk] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [savingId, setSavingId] = useState(null)
+
+  // ----- Orders state -----
+  const [orders, setOrders] = useState([])
+  const [ordLoading, setOrdLoading] = useState(true)
+  const [ordError, setOrdError] = useState('')
+  const [ordStatus, setOrdStatus] = useState('ALL') // PENDING, PAID, SHIPPED, DONE, CANCELED, ALL
+
+  useEffect(() => { init() }, [])
+  useEffect(() => { fetchProducts() }, [])
+  useEffect(() => { fetchOrders() }, [ordStatus])
+
+  async function fetchProducts() {
+    try {
+      const { data } = await api.get('/admin/products') // secured list
+      setProducts(Array.isArray(data.products) ? data.products : [])
+    } catch {
+      // fallback to public list if admin endpoint blocked
+      try {
+        const { data } = await api.get('/products')
+        setProducts(Array.isArray(data.products) ? data.products : [])
+      } catch {/* ignore */}
+    }
+  }
+
+  async function createProduct(e) {
+    e.preventDefault()
+    setProdError(''); setProdOk('')
+    if (!form.title || !form.description || form.price === '') {
+      setProdError('Please fill title, description, and price.')
+      return
+    }
+    setCreating(true)
+    try {
+      const payload = {
+        title: form.title,
+        description: form.description,
+        priceCents: moneyToCents(form.price),
+        stock: Number(form.stock || 0),
+        imageUrl: form.imageUrl || null,
+        featuredHome: !!form.featuredHome,
+      }
+      const { data } = await api.post('/admin/products', payload)
+      setProducts(p => [data.product, ...p])
+      setForm({ title:'', description:'', price:'', stock:0, imageUrl:'', featuredHome:false })
+      setProdOk('Product created')
+    } catch (e) {
+      setProdError(e?.response?.data?.error || 'Failed to create product (are you logged in as ADMIN?)')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  function onEdit(id, field, value) {
+    setProducts(list => list.map(p => (p.id === id ? { ...p, [field]: value } : p)))
+  }
+
+  async function saveRow(p) {
+    setSavingId(p.id)
+    try {
+      const payload = {
+        title: p.title,
+        description: p.description,
+        priceCents: moneyToCents(p._price ?? centsToMoney(p.priceCents)),
+        stock: Number(p.stock || 0),
+        imageUrl: p.imageUrl || null,
+        featuredHome: !!p.featuredHome,
+      }
+      const { data } = await api.put(`/admin/products/${p.id}`, payload)
+      setProducts(list => list.map(x => (x.id === p.id ? data.product : x)))
+      setProdOk(`Saved “${p.title}”`)
+    } catch (e) {
+      setProdError(e?.response?.data?.error || 'Failed to save')
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  async function removeRow(id) {
+    if (!window.confirm('Delete this product?')) return
+    setSavingId(id)
+    try {
+      await api.delete(`/admin/products/${id}`)
+      setProducts(list => list.filter(x => x.id !== id))
+      setProdOk('Deleted')
+    } catch (e) {
+      setProdError(e?.response?.data?.error || 'Failed to delete')
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  const filtered = useMemo(() => {
+    if (!q.trim()) return products
+    const needle = q.toLowerCase()
+    return products.filter(p =>
+      (p.title || '').toLowerCase().includes(needle) ||
+      (p.description || '').toLowerCase().includes(needle)
+    )
+  }, [q, products])
+
+  // ---------- Orders ----------
+  async function fetchOrders() {
+    setOrdLoading(true); setOrdError('')
+    try {
+      const { data } = await api.get('/admin/orders', { params: { status: ordStatus } })
+      setOrders(Array.isArray(data.orders) ? data.orders : [])
+    } catch (e) {
+      setOrdError(e?.response?.data?.error || 'Failed to load orders (admin only)')
+    } finally {
+      setOrdLoading(false)
+    }
+  }
+
+  async function setStatusFor(id, status) {
+    try {
+      await api.patch(`/admin/orders/${id}/status`, { status })
+      await fetchOrders()
+    } catch (e) {
+      alert(e?.response?.data?.error || 'Failed to update status')
+    }
+  }
+
+  // ---------- Guards ----------
+  if (!user) {
+    return (
+      <div className="text-center py-16">
+        <h2 className="text-2xl font-semibold mb-2">Admins only</h2>
+        <p className="text-gray-600 mb-6">Please log in as an admin to manage the shop.</p>
+        <Link to="/login" className="inline-block bg-indigo-600 text-white px-6 py-3 rounded-xl shadow">Login</Link>
+      </div>
+    )
+  }
+  if (user.role !== 'ADMIN') {
+    return <div className="py-10 text-center text-red-600">You do not have permission to view this page.</div>
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Admin</h1>
+        <div className="flex items-center gap-2">
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search products"
+            className="border rounded-lg p-2 w-64"
+          />
+          <button onClick={fetchProducts} className="bg-white border px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50">
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-8">
+        {/* ---------------- Left: New Product + List ---------------- */}
+        <div className="bg-white p-4 rounded-xl shadow">
+          <h3 className="font-semibold mb-3">New Product</h3>
+          <form onSubmit={createProduct} className="space-y-3">
+            <input
+              className="border p-2 rounded-lg w-full"
+              placeholder="Title"
+              value={form.title}
+              onChange={e=>setForm(f=>({...f, title:e.target.value}))}
+            />
+            <textarea
+              className="border p-2 rounded-lg w-full"
+              placeholder="Description"
+              rows={3}
+              value={form.description}
+              onChange={e=>setForm(f=>({...f, description:e.target.value}))}
+            />
+
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                className="border p-2 rounded-lg"
+                placeholder="Price (e.g. 199.00)"
+                value={form.price}
+                onChange={e=>setForm(f=>({...f, price:e.target.value}))}
+              />
+              <input
+                className="border p-2 rounded-lg"
+                placeholder="Stock"
+                type="number"
+                value={form.stock}
+                onChange={e=>setForm(f=>({...f, stock:e.target.value}))}
+              />
+            </div>
+
+            {/* Drag & Drop Uploader */}
+            <ImageDropZone
+              defaultPreview={form.imageUrl}
+              onOk={setProdOk}
+              onError={setProdError}
+              onUploaded={(url) => setForm(prev => ({ ...prev, imageUrl: url }))}
+            />
+
+            {/* Featured on Home */}
+            <label className="flex items-center gap-2 pt-1">
+              <input
+                type="checkbox"
+                checked={form.featuredHome}
+                onChange={e => setForm(f => ({ ...f, featuredHome: e.target.checked }))}
+              />
+              <span className="text-sm text-gray-700">Feature on homepage</span>
+            </label>
+
+            {form.imageUrl && (
+              <div className="pt-2">
+                <img src={form.imageUrl} alt="Product" className="w-40 h-40 object-cover rounded-lg border" />
+              </div>
+            )}
+
+            {prodError && <div className="text-red-600">{prodError}</div>}
+            {prodOk && <div className="text-green-600">{prodOk}</div>}
+
+            <button
+              disabled={creating}
+              className="bg-indigo-600 text-white px-6 py-3 rounded-xl shadow hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {creating ? 'Saving…' : 'Create'}
+            </button>
+          </form>
+
+          <h3 className="font-semibold mt-8 mb-3">Products</h3>
+          <div className="grid gap-3">
+            {filtered.map(p => (
+              <div key={p.id} className="bg-white p-3 rounded-xl shadow">
+                <div className="flex items-center gap-3">
+                  {p.imageUrl && <img src={p.imageUrl} className="w-16 h-16 object-cover rounded-lg border" alt={p.title} />}
+                  <div className="flex-1 grid md:grid-cols-2 gap-3">
+                    <input
+                      className="border rounded-lg p-2"
+                      value={p.title || ''}
+                      onChange={e => onEdit(p.id, 'title', e.target.value)}
+                    />
+                    <input
+                      className="border rounded-lg p-2"
+                      value={p.imageUrl || ''}
+                      onChange={e => onEdit(p.id, 'imageUrl', e.target.value)}
+                    />
+                    <textarea
+                      className="border rounded-lg p-2 md:col-span-2"
+                      rows={2}
+                      value={p.description || ''}
+                      onChange={e => onEdit(p.id, 'description', e.target.value)}
+                    />
+                    <div className="grid grid-cols-3 gap-3 md:col-span-2">
+                      <div className="flex items-center gap-2">
+                        <label className="w-16 text-gray-600">Price</label>
+                        <input
+                          className="border rounded-lg p-2 flex-1"
+                          value={p._price ?? centsToMoney(p.priceCents)}
+                          onChange={e => onEdit(p.id, '_price', e.target.value)}
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="w-16 text-gray-600">Stock</label>
+                        <input
+                          className="border rounded-lg p-2 flex-1"
+                          type="number"
+                          value={p.stock ?? 0}
+                          onChange={e => onEdit(p.id, 'stock', e.target.value)}
+                        />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={!!p.featuredHome}
+                            onChange={e => onEdit(p.id, 'featuredHome', e.target.checked ? 1 : 0)}
+                          />
+                          <span>Home featured</span>
+                        </label>
+                        <button
+                          disabled={savingId === p.id}
+                          onClick={() => saveRow(p)}
+                          className="bg-indigo-600 text-white px-4 py-2 rounded-lg shadow hover:bg-indigo-700 disabled:opacity-50"
+                        >
+                          {savingId === p.id ? 'Saving…' : 'Save'}
+                        </button>
+                        <button
+                          disabled={savingId === p.id}
+                          onClick={() => removeRow(p.id)}
+                          className="bg-white border px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {filtered.length === 0 && <div className="text-gray-600">No products found.</div>}
+          </div>
+        </div>
+
+        {/* ---------------- Right: Orders Manager ---------------- */}
+        <div className="bg-white p-4 rounded-xl shadow">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold">Orders</h3>
+            <div className="flex items-center gap-2">
+              <select
+                value={ordStatus}
+                onChange={e => setOrdStatus(e.target.value)}
+                className="border rounded-lg p-2"
+              >
+                {['ALL','PENDING','PAID','SHIPPED','DONE','CANCELED'].map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              <button onClick={fetchOrders} className="bg-white border px-3 py-2 rounded-lg shadow-sm hover:bg-gray-50">
+                Refresh
+              </button>
+            </div>
+          </div>
+
+          {ordLoading && <div className="py-6 text-center text-gray-600">Loading orders…</div>}
+          {ordError && <div className="py-2 text-red-600">{ordError}</div>}
+          {!ordLoading && !ordError && orders.length === 0 && (
+            <div className="py-6 text-center text-gray-600">No orders.</div>
+          )}
+
+          <div className="grid gap-3">
+            {orders.map(o => (
+              <div key={o.id} className="p-3 rounded-lg border">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-gray-600">#{o.id}</span>
+                    <span className="font-medium">{o.user?.name || 'Customer'}</span>
+                    <span className="text-sm text-gray-600">{o.user?.email}</span>
+                  </div>
+                  <div className="text-sm text-gray-600">{new Date(o.createdAt).toLocaleString()}</div>
+                </div>
+
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="px-2 py-1 rounded-full bg-gray-100">{o.status}</span>
+                  <span className="font-semibold">${(o.totalCents / 100).toFixed(2)}</span>
+
+                  <div className="flex gap-2 ml-auto">
+                    <button
+                      onClick={() => setStatusFor(o.id, 'PENDING')}
+                      className="bg-white border px-3 py-1.5 rounded-lg shadow-sm hover:bg-gray-50"
+                    >
+                      Mark Pending
+                    </button>
+                    <button
+                      disabled={o.status === 'SHIPPED'}
+                      onClick={() => setStatusFor(o.id, 'SHIPPED')}
+                      className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg shadow hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                      Mark Shipped
+                    </button>
+                    <button
+                      disabled={o.status === 'DONE'}
+                      onClick={() => setStatusFor(o.id, 'DONE')}
+                      className="bg-emerald-600 text-white px-3 py-1.5 rounded-lg shadow hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                      Mark Done
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-3 divide-y">
+                  {o.items?.map(it => (
+                    <div key={it.id} className="py-2 flex items-center gap-3">
+                      {it.product?.imageUrl && (
+                        <img
+                          src={it.product.imageUrl}
+                          alt={it.product.title}
+                          className="w-12 h-12 object-cover rounded-md border"
+                        />
+                      )}
+                      <div className="flex-1">
+                        <div className="font-medium">{it.product?.title ?? 'Product'}</div>
+                        <div className="text-sm text-gray-600">Qty {it.quantity}</div>
+                      </div>
+                      <div className="text-sm font-medium">
+                        ${((it.unitCents * it.quantity) / 100).toFixed(2)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+        </div>
+      </div>
+    </div>
+  )
+}

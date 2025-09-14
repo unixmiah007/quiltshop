@@ -1,0 +1,50 @@
+import express from 'express'
+import mysql from 'mysql2/promise'
+import 'dotenv/config'
+
+const router = express.Router()
+const pool = mysql.createPool({ uri: process.env.MYSQL_URL, namedPlaceholders: true, connectionLimit: 10 })
+
+function requireAdmin(req,res,next){
+  if(!req.user || req.user.role!=='ADMIN') return res.status(403).json({error:'Forbidden'})
+  next()
+}
+
+// List
+router.get('/', requireAdmin, async (req,res) => {
+  const [rows] = await pool.query('SELECT * FROM Product ORDER BY createdAt DESC LIMIT 200')
+  res.json({ products: rows })
+})
+
+// Create
+router.post('/', requireAdmin, async (req,res) => {
+  const { title, description, priceCents, stock, imageUrl, featuredHome } = req.body
+  await pool.query(
+      'INSERT INTO Product (title, description, priceCents, stock, imageUrl, featuredHome) VALUES (?,?,?,?,?,?)',
+      [title, description, Number(priceCents||0), Number(stock||0), imageUrl || null, featuredHome ? 1 : 0]
+  )
+  if(!title || !description || !priceCents) return res.status(400).json({error:'title, description, priceCents required'})
+  const [prod] = await pool.query('SELECT * FROM Product WHERE id=?',[r.insertId])
+  res.json({ product: prod[0] })
+})
+
+// Update
+router.put('/:id', requireAdmin, async (req,res) => {
+  const id = Number(req.params.id)
+  const { title, description, priceCents, stock, imageUrl, featuredHome } = req.body
+  await pool.query(
+      'UPDATE Product SET title=?, description=?, priceCents=?, stock=?, imageUrl=?, featuredHome=? WHERE id=?',
+      [title, description, Number(priceCents||0), Number(stock||0), imageUrl || null, featuredHome ? 1 : 0, req.params.id]
+  )
+  const [prod] = await pool.query('SELECT * FROM Product WHERE id=?',[id])
+  res.json({ product: prod[0] })
+})
+
+// Delete
+router.delete('/:id', requireAdmin, async (req,res) => {
+  const id = Number(req.params.id)
+  await pool.query('DELETE FROM Product WHERE id=?',[id])
+  res.json({ ok: true })
+})
+
+export default router

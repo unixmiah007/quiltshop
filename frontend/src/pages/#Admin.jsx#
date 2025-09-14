@@ -1,0 +1,102 @@
+import { useEffect, useState } from 'react'
+import { api } from '../components/api'
+import useAuth from '../store/useAuth'
+import AdminOrders from './AdminOrders.jsx'
+import useAuth from '../store/useAuth'
+import { useEffect } from 'react'
+import { Link } from 'react-router-dom'
+
+export default function Admin() {
+  const { user, init } = useAuth()
+  const [form, setForm] = useState({ title:'', description:'', priceCents:'', stock:'', imageUrl:'' })
+  const [file, setFile] = useState(null)
+  const [products, setProducts] = useState([])
+  const [error, setError] = useState('')
+  const [ok, setOk] = useState('')
+
+  useEffect(()=>{ init() },[])
+  useEffect(()=>{ load() },[])
+
+  async function load() {
+    const { data } = await api.get('/products')
+    setProducts(data.products || [])
+  }
+
+  async function uploadImage(e){
+    e.preventDefault()
+    setError(''); setOk('')
+    if (!file) { setError('Choose an image'); return }
+    const fd = new FormData()
+    fd.append('image', file)
+    try {
+      const { data } = await api.post('/uploads', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      setForm(prev => ({ ...prev, imageUrl: data.url }))
+      setOk('Uploaded image')
+    } catch (e) {
+      setError(e.response?.data?.error || 'Upload failed')
+    }
+  }
+
+  async function createProduct(e){
+    e.preventDefault()
+    setError(''); setOk('')
+    try {
+      const payload = {
+        ...form,
+        priceCents: parseInt(form.priceCents || '0'),
+        stock: parseInt(form.stock || '0'),
+      }
+      const { data } = await api.post('/products', payload)
+      setOk('Created product: ' + data.product.title)
+      setForm({ title:'', description:'', priceCents:'', stock:'', imageUrl:'' })
+      setFile(null)
+      load()
+    } catch (e) {
+      setError(e.response?.data?.error || 'Create failed')
+    }
+  }
+
+  if (!user) return <div className="text-center">Login required</div>
+  if (user.role !== 'ADMIN') return <div className="text-center">Admin only</div>
+
+  return (
+    <div>
+      <h2 className="text-2xl font-semibold mb-4">Admin</h2>
+      <div className="grid md:grid-cols-2 gap-8">
+        <div className="bg-white p-4 rounded-xl shadow">
+          <h3 className="font-semibold mb-3">New Product</h3>
+          <form onSubmit={createProduct} className="space-y-3">
+            <input className="border p-2 rounded-lg w-full" placeholder="Title" value={form.title} onChange={e=>setForm(f=>({...f, title:e.target.value}))} />
+            <textarea className="border p-2 rounded-lg w-full" placeholder="Description" value={form.description} onChange={e=>setForm(f=>({...f, description:e.target.value}))} />
+            <div className="grid grid-cols-2 gap-3">
+              <input className="border p-2 rounded-lg" placeholder="Price (cents)" value={form.priceCents} onChange={e=>setForm(f=>({...f, priceCents:e.target.value}))} />
+              <input className="border p-2 rounded-lg" placeholder="Stock" value={form.stock} onChange={e=>setForm(f=>({...f, stock:e.target.value}))} />
+            </div>
+            <div className="flex items-center gap-3">
+              <input type="file" accept="image/*" onChange={e=> setFile(e.target.files?.[0] || null)} />
+              <button onClick={uploadImage} className="bg-gray-100 px-3 py-2 rounded-lg">Upload Image</button>
+            </div>
+            {form.imageUrl && <img src={form.imageUrl} className="w-40 rounded-lg" />}
+            {error && <div className="text-red-600">{error}</div>}
+            {ok && <div className="text-green-600">{ok}</div>}
+            <button className="bg-indigo-600 text-white px-6 py-3 rounded-xl shadow hover:bg-indigo-700">Create</button>
+          </form>
+        </div>
+        <div>
+          <h3 className="font-semibold mb-3">Products</h3>
+          <div className="grid gap-3">
+            {products.map(p => (
+              <div key={p.id} className="bg-white p-3 rounded-xl shadow flex items-center gap-3">
+                {p.imageUrl && <img src={p.imageUrl} className="w-16 h-16 object-cover rounded-lg" />}
+                <div className="flex-1">
+                  <div className="font-medium">{p.title}</div>
+                  <div className="text-sm text-gray-600">${(p.priceCents/100).toFixed(2)} • Stock {p.stock}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

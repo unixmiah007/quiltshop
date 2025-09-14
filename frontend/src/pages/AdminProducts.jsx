@@ -1,0 +1,268 @@
+import { useEffect, useMemo, useState } from 'react'
+import { api } from '../components/api'
+import useAuth from '../store/useAuth'
+import { Link } from 'react-router-dom'
+
+const moneyToCents = (s) => {
+  if (s === '' || s == null) return 0
+  const n = Number(String(s).replace(/[^0-9.]/g, ''))
+  return Math.round(n * 100)
+}
+const centsToMoney = (c) => (Number(c || 0) / 100).toFixed(2)
+
+export default function AdminProducts() {
+  const { user, init } = useAuth()
+  const [list, setList] = useState([])
+  const [q, setQ] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [savingId, setSavingId] = useState(null)
+  const [toast, setToast] = useState('')
+  const [form, setForm] = useState({ title: '', description: '', price: '', stock: 0, imageUrl: '' })
+  const [creating, setCreating] = useState(false)
+
+  useEffect(() => { init() }, [])
+  useEffect(() => { fetchList() }, [])
+
+  async function fetchList() {
+    setLoading(true)
+    try {
+      const { data } = await api.get('/admin/products')
+      setList(Array.isArray(data.products) ? data.products : [])
+    } finally { setLoading(false) }
+  }
+
+  const filtered = useMemo(() => {
+    if (!q.trim()) return list
+    const needle = q.toLowerCase()
+    return list.filter(p =>
+      (p.title || '').toLowerCase().includes(needle) ||
+      (p.description || '').toLowerCase().includes(needle)
+    )
+  }, [q, list])
+
+  function showToast(msg) {
+    setToast(msg)
+    setTimeout(() => setToast(''), 1400)
+  }
+
+  async function createProduct(e) {
+    e?.preventDefault?.()
+    if (!form.title || !form.description || form.price === '') {
+      return alert('Please fill title, description, and price.')
+    }
+    setCreating(true)
+    try {
+      const payload = {
+        title: form.title,
+        description: form.description,
+        priceCents: moneyToCents(form.price),
+        stock: Number(form.stock || 0),
+        imageUrl: form.imageUrl || null,
+      }
+      const { data } = await api.post('/admin/products', payload)
+      setList([data.product, ...list])
+      setForm({ title: '', description: '', price: '', stock: 0, imageUrl: '' })
+      showToast('Product created')
+    } catch (e) {
+      alert(e?.response?.data?.error || 'Failed to create product')
+    } finally { setCreating(false) }
+  }
+
+  async function saveRow(p) {
+    setSavingId(p.id)
+    try {
+      const payload = {
+        title: p.title,
+        description: p.description,
+        priceCents: moneyToCents(p._price),
+        stock: Number(p.stock || 0),
+        imageUrl: p.imageUrl || null,
+      }
+      const { data } = await api.put(`/admin/products/${p.id}`, payload)
+      setList(list.map(x => (x.id === p.id ? data.product : x)))
+      showToast(`Saved “${p.title}”`)
+    } catch (e) {
+      alert(e?.response?.data?.error || 'Failed to save')
+    } finally { setSavingId(null) }
+  }
+
+  async function removeRow(id) {
+    if (!confirm('Delete this product?')) return
+    setSavingId(id)
+    try {
+      await api.delete(`/admin/products/${id}`)
+      setList(list.filter(x => x.id !== id))
+      showToast('Deleted')
+    } catch (e) {
+      alert(e?.response?.data?.error || 'Failed to delete')
+    } finally { setSavingId(null) }
+  }
+
+  function onEdit(id, field, value) {
+    setList(list.map(p => (p.id === id ? { ...p, [field]: value } : p)))
+  }
+
+  if (!user) {
+    return (
+      <div className="text-center py-16">
+        <h2 className="text-2xl font-semibold mb-2">Admins only</h2>
+        <p className="text-gray-600 mb-6">Please log in as an admin to manage products.</p>
+        <Link to="/login" className="inline-block bg-indigo-600 text-white px-6 py-3 rounded-xl shadow">Login</Link>
+      </div>
+    )
+  }
+  if (user.role !== 'ADMIN') {
+    return <div className="py-10 text-center text-red-600">You do not have permission to view this page.</div>
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <h1 className="text-2xl font-semibold">Manage Products</h1>
+        <div className="flex items-center gap-2">
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search title/description"
+            className="border rounded-lg p-2 w-64"
+          />
+          <button onClick={fetchList} className="bg-white border px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50">Refresh</button>
+        </div>
+      </div>
+
+      {/* Create form */}
+      <form onSubmit={createProduct} className="bg-white rounded-xl shadow p-4 space-y-3">
+        <div className="font-medium">Add New Product</div>
+        <div className="grid md:grid-cols-2 gap-3">
+          <input
+            className="border rounded-lg p-2"
+            placeholder="Title"
+            value={form.title}
+            onChange={e => setForm({ ...form, title: e.target.value })}
+          />
+          <input
+            className="border rounded-lg p-2"
+            placeholder="Image URL (http://3.82.218.69/uploads/quilt1.png)"
+            value={form.imageUrl}
+            onChange={e => setForm({ ...form, imageUrl: e.target.value })}
+          />
+          <textarea
+            className="border rounded-lg p-2 md:col-span-2"
+            placeholder="Description"
+            rows={3}
+            value={form.description}
+            onChange={e => setForm({ ...form, description: e.target.value })}
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <input
+              className="border rounded-lg p-2"
+              placeholder="Price (e.g. 199.00)"
+              value={form.price}
+              onChange={e => setForm({ ...form, price: e.target.value })}
+            />
+            <input
+              className="border rounded-lg p-2"
+              placeholder="Stock"
+              type="number"
+              value={form.stock}
+              onChange={e => setForm({ ...form, stock: e.target.value })}
+            />
+          </div>
+        </div>
+        <div>
+          <button
+            disabled={creating}
+            className="bg-emerald-600 text-white px-4 py-2 rounded-lg shadow hover:bg-emerald-700 disabled:opacity-50"
+          >
+            {creating ? 'Saving…' : 'Create Product'}
+          </button>
+        </div>
+      </form>
+
+      {/* List */}
+      {loading ? (
+        <div className="py-10 text-center text-gray-600">Loading products…</div>
+      ) : filtered.length === 0 ? (
+        <div className="py-10 text-center text-gray-600">No products found.</div>
+      ) : (
+        <div className="grid gap-3">
+          {filtered.map(p => (
+            <div key={p.id} className="bg-white rounded-xl shadow p-4">
+              <div className="flex items-start gap-4">
+                <img
+                  src={p.imageUrl || ''}
+                  onError={(e)=>{ e.currentTarget.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2256%22 height=%2256%22><rect width=%2256%22 height=%2256%22 fill=%22%23eee%22/><text x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%2210%22 fill=%22%23999%22>no img</text></svg>' }}
+                  alt={p.title}
+                  className="w-24 h-24 object-cover rounded-lg border"
+                />
+                <div className="flex-1 grid md:grid-cols-2 gap-3">
+                  <input
+                    className="border rounded-lg p-2"
+                    value={p.title || ''}
+                    onChange={e => onEdit(p.id, 'title', e.target.value)}
+                  />
+                  <input
+                    className="border rounded-lg p-2"
+                    value={p.imageUrl || ''}
+                    onChange={e => onEdit(p.id, 'imageUrl', e.target.value)}
+                  />
+                  <textarea
+                    className="border rounded-lg p-2 md:col-span-2"
+                    rows={2}
+                    value={p.description || ''}
+                    onChange={e => onEdit(p.id, 'description', e.target.value)}
+                  />
+                  <div className="grid grid-cols-3 gap-3 md:col-span-2">
+                    <div className="flex items-center gap-2">
+                      <label className="w-16 text-gray-600">Price</label>
+                      <input
+                        className="border rounded-lg p-2 flex-1"
+                        value={p._price ?? centsToMoney(p.priceCents)}
+                        onChange={e => onEdit(p.id, '_price', e.target.value)}
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="w-16 text-gray-600">Stock</label>
+                      <input
+                        className="border rounded-lg p-2 flex-1"
+                        type="number"
+                        value={p.stock ?? 0}
+                        onChange={e => onEdit(p.id, 'stock', e.target.value)}
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        disabled={savingId === p.id}
+                        onClick={() => saveRow(p)}
+                        className="bg-indigo-600 text-white px-4 py-2 rounded-lg shadow hover:bg-indigo-700 disabled:opacity-50"
+                      >
+                        {savingId === p.id ? 'Saving…' : 'Save'}
+                      </button>
+                      <button
+                        disabled={savingId === p.id}
+                        onClick={() => removeRow(p.id)}
+                        className="bg-white border px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          ))}
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed bottom-4 right-4 bg-black text-white px-4 py-2 rounded-lg shadow">
+          {toast}
+        </div>
+      )}
+    </div>
+  )
+}
+
+

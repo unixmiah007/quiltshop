@@ -1,0 +1,181 @@
+// backend/src/routes/products.js
+import express from 'express'
+import { PrismaClient, Prisma } from '@prisma/client'
+import { requireAuth, requireAdmin } from '../middleware/auth.js'
+
+const prisma = new PrismaClient()
+const router = express.Router()
+
+function clampLimit(n, def = 100, max = 100) {
+  const num = Number(n ?? def)
+  if (Number.isNaN(num) || num < 1) return def
+  return Math.min(num, max)
+}
+
+function toBool(v) {
+  if (typeof v === 'boolean') return v
+  if (typeof v === 'number') return v !== 0
+  const s = String(v ?? '').trim().toLowerCase()
+  return ['1', 'true', 'yes', 'on'].includes(s)
+}
+
+/* -------------------------
+   Public list & read
+--------------------------*/
+
+// GET /api/products
+router.get('/', async (req, res, next) => {
+  try {
+    const { featuredHome, limit } = req.query
+    const take = clampLimit(limit, 100, 100)
+
+    // If caller asked for featured items, bypass Prisma filter to avoid schema mismatch
+    if (featuredHome !== undefined && toBool(featuredHome)) {
+      // Raw SQL path – works even if Prisma model lacks `featuredHome`
+      const rows = await prisma.$queryRaw`
+        SELECT * FROM Product
+        WHERE featuredHome = 1
+        ORDER BY createdAt DESC
+        LIMIT ${take}
+      `
+      return res.json({ products: rows })
+    }
+
+    // Normal Prisma path
+    const products = await prisma.product.findMany({
+      orderBy: { createdAt: 'desc' },
+      take,
+    })
+    res.json({ products })
+  } catch (e) {
+    next(e)
+  }
+})
+
+// Optional: GET /api/products/featured-home
+router.get('/featured-home', async (req, res, next) => {
+  try {
+    const take = clampLimit(req.query.limit, 12, 50)
+    const rows = await prisma.$queryRaw`
+      SELECT * FROM Product
+      WHERE featuredHome = 1
+      ORDER BY createdAt DESC
+      LIMIT ${take}
+    `
+    res.json({ products: rows })
+  } catch (e) {
+    next(e)
+  }
+})
+
+// GET /api/products/:id
+router.get('/:id', async (req, res, next) => {
+  try {
+    const id = Number(req.params.id)
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' })
+    const product = await prisma.product.findUnique({ where: { id } })
+    if (!product) return res.status(404).json({ error: 'Not found' })
+    res.json({ product })
+  } catch (e) {
+    next(e)
+  }
+})
+
+/* -------------------------
+   Admin create/update/delete
+--------------------------*/
+
+// POST /api/products
+router.post('/', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const { title, description, priceCents, stock, imageUrl, featuredHome } = req.body
+    if (!title || !description || priceCents == null) {
+      return res.status(400).json({ error: 'Missing fields' })
+    }
+
+    // If your DB has the column but Prisma schema doesn’t, this still succeeds;
+    // Prisma will ignore unknown props, so we only pass standard fields here,
+    // and flip `featuredHome` via raw SQL below when needed.
+    const product = await prisma.product.create({
+      data: {
+        title,
+        description,
+        priceCents: Number(priceCents),
+        stock: Number(stock ?? 0),
+        imageUrl: imageUrl || null,
+        // If your Prisma model already has featuredHome, this line is safe:
+        ...(prisma.product.fields?.featuredHome ? { featuredHome: toBool(featuredHome) } : {}),
+      },
+    })
+
+    // If Prisma model lacks `featuredHome` but DB has it, update via raw SQL:
+    if (!prisma.product.fields?.featuredHome && featuredHome !== undefined) {
+      await prisma.$executeRaw`
+        UPDATE Product SET featuredHome = ${toBool(featuredHome) ? 1 : 0} WHERE id = ${product.id}
+      `
+      const [reloaded] = await prisma.$queryRaw`
+        SELECT * FROM Product WHERE id = ${product.id} LIMIT 1
+      `
+      return res.json({ product: reloaded })
+    }
+
+    res.json({ product })
+  } catch (e) {
+    next(e)
+  }
+})
+
+// PUT /api/products/:id
+router.put('/:id', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const id = Number(req.params.id)
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' })
+
+    const { title, description, priceCents, stock, imageUrl, featuredHome } = req.body
+
+    // Update core fields via Prisma
+    const updated = await prisma.product.update({
+      where: { id },
+      data: {
+        ...(title !== undefined ? { title } : {}),
+        ...(description !== undefined ? { description } : {}),
+        ...(priceCents !== undefined ? { priceCents: Number(priceCents) } : {}),
+        ...(stock !== undefined ? { stock: Number(stock) } : {}),
+        ...(imageUrl !== undefined ? { imageUrl: imageUrl || null } : {}),
+        // If model has the column, let Prisma do it:
+        ...(prisma.product.fields?.featuredHome && featuredHome !== undefined
+          ? { featuredHome: toBool(featuredHome) }
+          : {}),
+      },
+    })
+
+    // If model lacks the column but DB has it, set via raw SQL
+    if (!prisma.product.fields?.featuredHome && featuredHome !== undefined) {
+      await prisma.$executeRaw`
+        UPDATE Product SET featuredHome = ${toBool(featuredHome) ? 1 : 0} WHERE id = ${id}
+      `
+      const [reloaded] = await prisma.$queryRaw`
+        SELECT * FROM Product WHERE id = ${id} LIMIT 1
+      `
+      return res.json({ product: reloaded })
+    }
+
+    res.json({ product: updated })
+  } catch (e) {
+    next(e)
+  }
+})
+
+// DELETE /api/products/:id
+router.delete('/:id', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const id = Number(req.params.id)
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' })
+    await prisma.product.delete({ where: { id } })
+    res.json({ ok: true })
+  } catch (e) {
+    next(e)
+  }
+})
+
+export default router
